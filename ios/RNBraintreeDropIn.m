@@ -59,6 +59,10 @@ RCT_REMAP_METHOD(show,
     address.countryCodeAlpha2 = threeDSecureOptions[@"countryCode"];
     threeDSecureRequest.billingAddress = address;
 
+    self.apiClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.apiClient];
+    BTDataCollector *dataCollector = self.dataCollector;
+
     BTThreeDSecureAdditionalInformation *additionalInformation = [BTThreeDSecureAdditionalInformation new];
     additionalInformation.shippingAddress = address;
     threeDSecureRequest.additionalInformation = additionalInformation;
@@ -80,7 +84,9 @@ RCT_REMAP_METHOD(show,
                     } else if (!cardNonce.threeDSecureInfo.liabilityShifted && cardNonce.threeDSecureInfo.wasVerified) {
                         reject(@"3DSECURE_LIABILITY_NOT_SHIFTED", @"3D Secure liability was not shifted", nil);
                     } else {
-                        [[self class] resolvePayment :result resolver:resolve];
+                        [[self class] resolvePayment: result
+                                            resolver: resolve
+                                       dataCollector: dataCollector];
                     }
                 } else if (result.paymentOptionType == BTUIKPaymentOptionTypeApplePay) {
                     if (!options[@"companyName"]) {
@@ -91,8 +97,7 @@ RCT_REMAP_METHOD(show,
                         reject(@"NO_TOTAL_PRICE", @"You must provide a total price", nil);
                         return;
                     }
-                    self.apiClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
-                    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.apiClient];
+
                     self.resolve = resolve;
                     self.reject = reject;
                     [self setupPaymentRequest:^(PKPaymentRequest *paymentRequest, NSError *error) {
@@ -101,7 +106,9 @@ RCT_REMAP_METHOD(show,
                         [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:vc animated:YES completion:NULL];
                     } options: options];
                 } else {
-                    [[self class] resolvePayment :result resolver:resolve];
+                    [[self class] resolvePayment: result
+                                        resolver: resolve
+                                   dataCollector: dataCollector];
                 }
             }
         }];
@@ -113,13 +120,18 @@ RCT_REMAP_METHOD(show,
     }
 }
 
-+ (void)resolvePayment:(BTDropInResult* _Nullable)result resolver:(RCTPromiseResolveBlock _Nonnull)resolve {
++ (void)resolvePayment:(BTDropInResult* _Nullable)result
+              resolver:(RCTPromiseResolveBlock _Nonnull)resolve
+         dataCollector:(BTDataCollector *)dataCollector {
     NSMutableDictionary* jsResult = [NSMutableDictionary new];
     [jsResult setObject:result.paymentMethod.nonce forKey:@"nonce"];
     [jsResult setObject:result.paymentMethod.type forKey:@"type"];
     [jsResult setObject:result.paymentDescription forKey:@"description"];
     [jsResult setObject:[NSNumber numberWithBool:result.paymentMethod.isDefault] forKey:@"isDefault"];
-    resolve(jsResult);
+    [dataCollector collectFraudData:^(NSString * _Nonnull deviceData) {
+        [jsResult setObject:deviceData forKey:@"deviceData"];
+        resolve(jsResult);
+    }];
 }
 
 - (void)setupPaymentRequest:(void (^)(PKPaymentRequest * _Nullable, NSError * _Nullable))completion options:(NSDictionary*)options {
