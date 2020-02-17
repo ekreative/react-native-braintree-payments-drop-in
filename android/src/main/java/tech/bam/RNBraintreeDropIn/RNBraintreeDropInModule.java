@@ -68,12 +68,12 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
                     resolvePayment(paymentMethodNonce, activity);
                 } else if (resultCode == Activity.RESULT_CANCELED) {
                     mPromise.reject("USER_CANCELLATION", "The user cancelled");
+                    mPromise = null;
                 } else {
                     Exception exception = (Exception) data.getSerializableExtra(DropInActivity.EXTRA_ERROR);
                     mPromise.reject(exception.getMessage(), exception.getMessage());
+                    mPromise = null;
                 }
-
-                mPromise = null;
             }
         });
     }
@@ -86,6 +86,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
         } else {
             mClientToken = options.getString("clientToken");
         }
+
 
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
@@ -122,6 +123,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
         ThreeDSecureAdditionalInformation additionalInformation = new ThreeDSecureAdditionalInformation()
                 .shippingAddress(address);
+
 
         ThreeDSecureRequest threeDSecureRequest;
         try {
@@ -177,6 +179,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
             extractDeviceData(currentActivity, jsResult);
         } catch (NullPointerException ignore) {
             mPromise.reject("PAYMENT_NONCE_RESOLVE_FAILED", "Failed to resolve payment nonce");
+            mPromise = null;
         }
     }
 
@@ -191,15 +194,20 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
                     public void onResponse(String deviceData) {
                         jsResult.putString("deviceData", deviceData);
                         mPromise.resolve(jsResult);
+                        mPromise = null;
                     }
                 });
             } catch (InvalidArgumentException e) {
                 e.printStackTrace();
                 mPromise.resolve(jsResult);
+                mPromise = null;
+            } catch (NullPointerException ignore) {
+                mPromise.reject("PAYMENT_NONCE_RESOLVE_FAILED", "Failed to resolve payment nonce");
             }
         } else {
             Log.e("DropInModule", "Failed to extract device data, activity is not AppCompat");
             mPromise.resolve(jsResult);
+            mPromise = null;
         }
     }
 
