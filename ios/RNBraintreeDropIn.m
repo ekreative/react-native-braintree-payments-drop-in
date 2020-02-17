@@ -3,10 +3,12 @@
 #import "BraintreeApplePay.h"
 #import "BTThreeDSecureRequest.h"
 #import "BTUIKAppearance.h"
+#import "BTDataCollector.h"
 
 @interface RNBraintreeDropIn() <PKPaymentAuthorizationViewControllerDelegate>
 
 @property (nonatomic, strong) BTAPIClient *apiClient;
+@property (nonatomic, strong) BTDataCollector *dataCollector;
 @property (nonatomic, strong) RCTPromiseResolveBlock resolve;
 @property (nonatomic, strong) RCTPromiseRejectBlock reject;
 
@@ -44,7 +46,7 @@ RCT_REMAP_METHOD(show,
     threeDSecureRequest.amount = [NSDecimalNumber decimalNumberWithString:threeDSecureOptions[@"amount"]];
     threeDSecureRequest.email = threeDSecureOptions[@"email"];
     threeDSecureRequest.versionRequested = BTThreeDSecureVersion2;
-    
+
     BTThreeDSecurePostalAddress *address = [BTThreeDSecurePostalAddress new];
     address.givenName = threeDSecureOptions[@"firstName"];
     address.surname = threeDSecureOptions[@"lastName"];
@@ -90,6 +92,7 @@ RCT_REMAP_METHOD(show,
                         return;
                     }
                     self.apiClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+                    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.apiClient];
                     self.resolve = resolve;
                     self.reject = reject;
                     [self setupPaymentRequest:^(PKPaymentRequest *paymentRequest, NSError *error) {
@@ -178,22 +181,9 @@ RCT_REMAP_METHOD(show,
                                  completion:^(BTApplePayCardNonce *tokenizedApplePayPayment,
                                               NSError *error) {
         if (tokenizedApplePayPayment) {
-            // On success, send nonce to your server for processing.
-            NSLog(@"nonce = %@", tokenizedApplePayPayment.nonce);
-            NSLog(@"description = %@", tokenizedApplePayPayment.localizedDescription);
-            NSLog(@"type = %@", tokenizedApplePayPayment.type);
-
-            // If requested, address information is accessible in `payment` and may
-            // also be sent to your server.
-            NSLog(@"billingPostalCode = %@", payment.billingContact.postalAddress.postalCode);
-
             // Then indicate success or failure via the completion callback, e.g.
-            NSMutableDictionary* jsResult = [NSMutableDictionary new];
-            [jsResult setObject:tokenizedApplePayPayment.nonce forKey:@"nonce"];
-            [jsResult setObject:tokenizedApplePayPayment.localizedDescription forKey:@"type"];
-            [jsResult setObject:tokenizedApplePayPayment.type forKey:@"description"];
-            self.resolve(jsResult);
-            completion(PKPaymentAuthorizationStatusSuccess);
+            [self handleSuccessTokenizeApplePayPayment: tokenizedApplePayPayment
+                                            completion: completion];
         } else {
             // Tokenization failed. Check `error` for the cause of the failure.
             self.reject(error.localizedDescription, error.localizedDescription, error);
@@ -202,6 +192,20 @@ RCT_REMAP_METHOD(show,
         }
         self.resolve = NULL;
         self.reject = NULL;
+    }];
+}
+
+- (void)handleSuccessTokenizeApplePayPayment:(BTApplePayCardNonce *)tokenizedApplePayPayment
+                                  completion:(void (^)(PKPaymentAuthorizationStatus))completion {
+
+    NSMutableDictionary* jsResult = [NSMutableDictionary new];
+    [jsResult setObject:tokenizedApplePayPayment.nonce forKey:@"nonce"];
+    [jsResult setObject:tokenizedApplePayPayment.localizedDescription forKey:@"type"];
+    [jsResult setObject:tokenizedApplePayPayment.type forKey:@"description"];
+    [self.dataCollector collectFraudData:^(NSString * _Nonnull deviceData) {
+        [jsResult setObject:deviceData forKey:@"deviceData"];
+        self.resolve(jsResult);
+        completion(PKPaymentAuthorizationStatusSuccess);
     }];
 }
 
@@ -215,3 +219,4 @@ RCT_REMAP_METHOD(show,
 }
 
 @end
+
