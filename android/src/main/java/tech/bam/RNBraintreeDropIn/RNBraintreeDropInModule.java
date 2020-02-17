@@ -2,9 +2,15 @@ package tech.bam.RNBraintreeDropIn;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 
+import com.braintreepayments.api.BraintreeFragment;
+import com.braintreepayments.api.DataCollector;
+import com.braintreepayments.api.exceptions.InvalidArgumentException;
+import com.braintreepayments.api.interfaces.BraintreeResponseListener;
 import com.braintreepayments.api.models.GooglePaymentRequest;
 import com.braintreepayments.api.models.ThreeDSecureAdditionalInformation;
 import com.braintreepayments.api.models.ThreeDSecurePostalAddress;
@@ -30,6 +36,7 @@ import com.facebook.react.bridge.Promise;
 public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     private Promise mPromise;
+    private String mClientToken;
     private static final int DROP_IN_REQUEST = 0x444;
 
     RNBraintreeDropInModule(ReactApplicationContext reactContext) {
@@ -58,7 +65,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
                             return;
                         }
                     }
-                    resolvePayment(paymentMethodNonce);
+                    resolvePayment(paymentMethodNonce, activity);
                 } else if (resultCode == Activity.RESULT_CANCELED) {
                     mPromise.reject("USER_CANCELLATION", "The user cancelled");
                 } else {
@@ -76,6 +83,8 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
         if (!options.hasKey("clientToken")) {
             promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
             return;
+        } else {
+            mClientToken = options.getString("clientToken");
         }
 
         Activity currentActivity = getCurrentActivity();
@@ -158,17 +167,39 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     }
 
 
-    private void resolvePayment(PaymentMethodNonce paymentMethodNonce) {
+    private void resolvePayment(PaymentMethodNonce paymentMethodNonce, Activity currentActivity) {
         try {
             WritableMap jsResult = Arguments.createMap();
             jsResult.putString("nonce", paymentMethodNonce.getNonce());
             jsResult.putString("type", paymentMethodNonce.getTypeLabel());
             jsResult.putString("description", paymentMethodNonce.getDescription());
             jsResult.putBoolean("isDefault", paymentMethodNonce.isDefault());
-
-            mPromise.resolve(jsResult);
-        } catch (NullPointerException ignore){
+            extractDeviceData(currentActivity, jsResult);
+        } catch (NullPointerException ignore) {
             mPromise.reject("PAYMENT_NONCE_RESOLVE_FAILED", "Failed to resolve payment nonce");
+        }
+    }
+
+    private void extractDeviceData(Activity currentActivity, final WritableMap jsResult) {
+        if (currentActivity instanceof AppCompatActivity) {
+            try {
+                BraintreeFragment braintreeFragment = BraintreeFragment.newInstance(
+                        (AppCompatActivity) currentActivity,
+                        mClientToken);
+                DataCollector.collectDeviceData(braintreeFragment, new BraintreeResponseListener<String>() {
+                    @Override
+                    public void onResponse(String deviceData) {
+                        jsResult.putString("deviceData", deviceData);
+                        mPromise.resolve(jsResult);
+                    }
+                });
+            } catch (InvalidArgumentException e) {
+                e.printStackTrace();
+                mPromise.resolve(jsResult);
+            }
+        } else {
+            Log.e("DropInModule", "Failed to extract device data, activity is not AppCompat");
+            mPromise.resolve(jsResult);
         }
     }
 
