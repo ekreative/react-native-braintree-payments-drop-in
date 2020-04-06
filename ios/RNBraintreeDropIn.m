@@ -35,6 +35,7 @@ RCT_REMAP_METHOD(show,
 
     BTDropInRequest *request = [[BTDropInRequest alloc] init];
     request.threeDSecureVerification = YES;
+    request.cardholderNameSetting = BTFormFieldOptional;
 
     if (!options[@"disabledVaultManager"]) {
         request.vaultManager = YES;

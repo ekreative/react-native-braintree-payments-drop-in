@@ -15,6 +15,7 @@ import com.braintreepayments.api.models.GooglePaymentRequest;
 import com.braintreepayments.api.models.ThreeDSecureAdditionalInformation;
 import com.braintreepayments.api.models.ThreeDSecurePostalAddress;
 import com.braintreepayments.api.models.ThreeDSecureRequest;
+import com.braintreepayments.cardform.view.CardForm;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -142,7 +143,8 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
                 .requestThreeDSecureVerification(true)
                 .threeDSecureRequest(threeDSecureRequest)
                 .vaultManager(disabledVaultManager)
-                .clientToken(options.getString("clientToken"));
+                .clientToken(options.getString("clientToken"))
+                .cardholderNameStatus(CardForm.FIELD_OPTIONAL);
 
         try {
             String amount = threeDSecureOptions.getString("amount");
