@@ -210,8 +210,12 @@ RCT_REMAP_METHOD(show,
 
 - (void)paymentAuthorizationViewControllerDidFinish:(nonnull PKPaymentAuthorizationViewController *)controller {
     [self.reactRoot dismissViewControllerAnimated:YES completion:NULL];
-    if (self.reject && [self isApplePaymentAuthorized]) {
-        self.reject(@"APPLE_PAY_FAILED", @"Apple Pay failed", nil);
+    if (self.reject) {
+        if (self.isApplePaymentAuthorized == NO) {
+            self.reject(@"USER_CANCELLATION", @"The user cancelled", nil);
+        } else {
+            self.reject(@"APPLE_PAY_FAILED", @"Apple Pay failed", nil);
+        }
     }
     
     self.resolve = NULL;
