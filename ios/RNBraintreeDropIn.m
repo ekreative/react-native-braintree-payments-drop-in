@@ -9,6 +9,7 @@
 @property (nonatomic, strong) BTAPIClient *apiClient;
 @property (nonatomic, strong) RCTPromiseResolveBlock resolve;
 @property (nonatomic, strong) RCTPromiseRejectBlock reject;
+@property (nonatomic, assign) BOOL isApplePaymentAuthorized;
 
 @end
 
@@ -93,6 +94,7 @@ RCT_REMAP_METHOD(show,
                     self.resolve = resolve;
                     self.reject = reject;
                     [self setupPaymentRequest:^(PKPaymentRequest *paymentRequest, NSError *error) {
+                        [self setIsApplePaymentAuthorized: NO];
                         PKPaymentAuthorizationViewController *vc = [[PKPaymentAuthorizationViewController alloc] initWithPaymentRequest:paymentRequest];
                         vc.delegate = self;
                         [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:vc animated:YES completion:NULL];
@@ -171,6 +173,7 @@ RCT_REMAP_METHOD(show,
                        didAuthorizePayment:(PKPayment *)payment
                                 completion:(void (^)(PKPaymentAuthorizationStatus))completion {
 
+    [self setIsApplePaymentAuthorized: YES];
     // Example: Tokenize the Apple Pay payment
     BTApplePayClient *applePayClient = [[BTApplePayClient alloc]
                                         initWithAPIClient:self.apiClient];
@@ -207,11 +210,13 @@ RCT_REMAP_METHOD(show,
 
 - (void)paymentAuthorizationViewControllerDidFinish:(nonnull PKPaymentAuthorizationViewController *)controller {
     [self.reactRoot dismissViewControllerAnimated:YES completion:NULL];
-    if (self.reject) {
+    if (self.reject && [self isApplePaymentAuthorized]) {
         self.reject(@"APPLE_PAY_FAILED", @"Apple Pay failed", nil);
     }
+    
     self.resolve = NULL;
     self.reject = NULL;
+    self.isApplePaymentAuthorized = NULL;
 }
 
 @end
